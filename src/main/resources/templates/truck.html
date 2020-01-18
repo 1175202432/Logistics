@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title></title>
+		<meta name="renderer" content="webkit" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+		<link rel="stylesheet" href="../static/layui/css/layui.css" th:href="@{/layui/css/layui.css}" media="all" />
+		<script src="../static/layui/layui.js" th:src="@{/layui/layui.js}" charset="utf-8"></script>
+	</head>
+	<body>
+		<input type="hidden" id="html" value="truck" />
+		<table id="LAY-app-content-list" lay-filter="LAY-app-content-list"></table>
+
+		<script type="text/html" id="toolbarDemo">
+			<div class="layui-btn-container">
+				<button class="layui-btn layuiadmin-btn-list" data-type="batchdel">删除</button>
+				<button class="layui-btn layuiadmin-btn-list" data-type="add">添加</button>
+			</div>
+		</script>
+
+		<script type="text/html" id="barDemo">
+			<a class="layui-btn layui-btn-xs" lay-event="edit">编辑</a>
+			<a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+		</script>
+		<script id="layuiScript">
+			layui.config({
+				base: './' //静态资源所在路径
+			}).extend({
+				index: 'lib/index' //主入口模块
+			}).use(['index', 'contlist', 'table'], function() {
+
+				var table = layui.table,
+					form = layui.form;
+
+				//监听搜索
+				form.on('submit(LAY-app-contlist-search)', function(data) {
+					var field = data.field;
+
+					//执行重载
+					table.reload('LAY-app-content-list', {
+						where: field
+					});
+				});
+
+				//第一个实例
+				table.render({
+					elem: '#LAY-app-content-list',
+					height: 'full-50',
+					limit: 20,
+					url: '/truck/queryByPage', //数据接口
+					method: 'post',
+					cellMinWidth: 80,
+					page: true, //开启分页
+					toolbar: '#toolbarDemo', //开启头部工具栏，并为其绑定左侧模板
+					defaultToolbar: ['filter', 'exports', 'print', { //自定义头部工具栏右侧图标。如无需自定义，去除该参数即可
+						title: '提示',
+						layEvent: 'LAYTABLE_TIPS',
+						icon: 'layui-icon-tips'
+					}],
+					title: '用户数据表',
+					cols: [
+						[ //表头
+							{
+								checkbox: true,
+								fixed: true
+							},
+							{
+								field: 'no',
+								title: 'ID',
+								width: 80,
+								align: 'center',
+								sort: true
+							},
+							{
+								field: 'name',
+								title: '货车名',
+								align: 'center'
+							},
+							{
+								field: 'type',
+								title: '型号',
+								align: 'center'
+							},
+							{
+								field: 'freight',
+								title: '载重',
+								align: 'center'
+							},
+							{
+								fixed: 'right',
+								title: '操作',
+								toolbar: '#barDemo',
+								align: 'center'
+							}
+						]
+					]
+				});
+
+				var $ = layui.$,
+					active = {
+						batchdel: function() {
+							var checkStatus = table.checkStatus('LAY-app-content-list'),
+								checkData = checkStatus.data; //得到选中的数据
+
+							var idList = [];
+							checkData.forEach(function(n, i) {
+								idList.push(n.id);
+							});
+							if (checkData.length === 0) {
+								return layer.msg('请选择数据');
+							}
+
+							layer.confirm('确定删除吗？', function(index) {
+
+								$.ajax({
+									url: '/truck/deleteMore', //地址
+									data: "idList=" + idList,
+									dataType: 'json', //数据类型
+									type: 'post', //类型
+									timeout: 2000, //超时
+									//请求成功
+									success: function(data, status) {
+										if (status) {
+											table.reload('LAY-app-content-list');
+											layer.msg('删除成功', {
+												icon: 1
+											})
+										}
+									}
+								})
+							});
+						},
+						add: function() {
+							layer.open({
+								type: 2,
+								title: '添加数据',
+								content: '/truckAdd',
+								maxmin: true,
+								area: ['480px', '320px'],
+								btn: ['提交', '重置', '取消'],
+								yes: function(index, layero) {
+									//点击确认触发 iframe 内容中的按钮提交
+
+									var submit = layero.find('iframe').contents().find("#layuiadmin-app-form-submit");
+									submit.click();
+									table.reload('LAY-app-content-list', {
+										page: {
+											curr: 1 //重新从第 1 页开始
+										},
+										url: '/truck/queryByPage' //后台做模糊搜索接口路径
+											,
+										method: 'post'
+									});
+								},
+								btn2: function(index, layero) {
+									var submit = layero.find('iframe').contents().find("#layuiadmin-app-form-reset");
+									submit.click();
+									return false; //开启该代码可禁止点击该按钮关闭
+								},
+								success: function(layero, index) {
+									var body = layer.getChildFrame('body', index);
+									var iframeWin = window[layero.find('iframe')[0]['name']]; //得到iframe页的窗口对象，执行iframe页的方法：
+									iframeWin.document.getElementById("url").value = "add";
+								}
+							});
+						}
+					};
+
+				$('.layui-btn.layuiadmin-btn-list').on('click', function() {
+					var type = $(this).data('type');
+					active[type] ? active[type].call(this) : '';
+				});
+
+				//监听行工具事件
+				table.on('tool(LAY-app-content-list)', function(obj) {
+					var data = obj.data;
+					//console.log(obj)
+					if (obj.event === 'del') {
+						layer.confirm('真的删除行么', function(index) {
+							layer.close(index);
+
+							$.ajax({
+								url: '/truck/deleteById', //地址
+								data: {
+									'id': data.id
+								},
+								dataType: 'json', //数据类型
+								type: 'post', //类型
+								timeout: 2000, //超时
+								//请求成功
+								success: function(data, status) {
+									if (status) {
+										obj.del();
+										table.reload('LAY-app-content-list');
+										layer.msg('删除成功', {
+											icon: 1
+										})
+									}
+								}
+							})
+
+						});
+					} else if (obj.event === 'edit') {
+						layer.open({
+							type: 2,
+							title: '修改数据',
+							content: '/truckAdd',
+							maxmin: true,
+							area: ['480px', '320px'],
+							btn: ['提交', '重置', '取消'],
+							yes: function(index, layero) {
+								//点击确认触发 iframe 内容中的按钮提交
+
+								var submit = layero.find('iframe').contents().find("#layuiadmin-app-form-submit");
+								submit.click();
+								table.reload('LAY-app-content-list', {
+									page: {
+										curr: 1 //重新从第 1 页开始
+									},
+									url: '/truck/queryByPage', //后台做模糊搜索接口路径
+									method: 'post'
+								});
+							},
+							btn2: function(index, layero) {
+								var submit = layero.find('iframe').contents().find("#layuiadmin-app-form-reset");
+								submit.click();
+								return false; //开启该代码可禁止点击该按钮关闭
+							},
+							success: function(layero, index) {
+								var body = layer.getChildFrame('body', index);
+								var iframeWin = window[layero.find('iframe')[0]['name']]; //得到iframe页的窗口对象，执行iframe页的方法：
+								/*
+								iframeWin.document.getElementById("url").value = "update";
+								iframeWin.document.getElementById("id").value = data.id;
+								iframeWin.document.getElementById("name").value = data.name;
+								iframeWin.document.getElementById("phone").value = data.phone;
+								if (data.vip == 1) {
+									iframeWin.document.getElementById("vip").value = true;
+								}*/
+							}
+						});
+					}
+				});
+			})
+		</script>
+	</body>
+</html>
